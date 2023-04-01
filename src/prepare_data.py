@@ -11,13 +11,14 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import PyPDF2
 import io
 import requests
-global headers
+global headers, cwd
 headers = {'User-Agent': 'Mozilla/5.0 (X11; Windows; Windows x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36'}
 
+import os 
 
 
 def getAllSampleIDs():
-    catalog_url = r'C:\Users\mrehberg\Documents\Mines\git\lunarSoil\Lunar Samples Catalog.html'
+    catalog_url = cwd+'Lunar Samples.html'
     dfs = pd.read_html(catalog_url)
     sampleIDs=pd.Series()
     for df in dfs:
@@ -45,17 +46,20 @@ def listPDFfiles(sampleIDs):
 def getPageCount(df_samples):
     df_samples['numPages'] = 0
     for row in range(len(df_samples)):
-        file_path = df_samples['compendiumUrl'][row]
-        response = requests.get(url=file_path, headers=headers, timeout=120)
-        on_fly_mem_obj = io.BytesIO(response.content)
-        pdfReader = PyPDF2.PdfFileReader(on_fly_mem_obj)
-        totalPages = pdfReader.numPages
-        df_samples.loc[row, 'numPages'] = totalPages
+        try:
+            file_path = df_samples['compendiumUrl'][row]
+            response = requests.get(url=file_path, headers=headers, timeout=120)
+            on_fly_mem_obj = io.BytesIO(response.content)
+            pdfReader = PyPDF2.PdfFileReader(on_fly_mem_obj, strict=False)
+            totalPages = pdfReader.numPages
+            df_samples.loc[row, 'numPages'] = totalPages
+        except:
+            continue
     return df_samples
 
 
 def combineAPIdata(df_samples):
-    df_samples ['curatorApiUrl'] = r'https://curator.jsc.nasa.gov/rest/lunarapi/samples/sampledetails/' + df_samples['id']
+    df_samples['curatorApiUrl'] = r'https://curator.jsc.nasa.gov/rest/lunarapi/samples/sampledetails/' + df_samples['id']
     api_cols = ['GENERIC',
                  'SAMPLEID',
                  'MISSION',
@@ -71,7 +75,7 @@ def combineAPIdata(df_samples):
                  'HASDISPLAYSAMPLE',
                  'DISPLAYSAMPLENUMBER',
                  'GENERICDESCRIPTION']
-    df_samples[api_cols] = ''
+    df_samples = df_samples.reindex(columns = df_samples.columns.tolist() + api_cols).fillna('')
     
     bad_api = []
     for row in range(len(df_samples)):
@@ -81,14 +85,16 @@ def combineAPIdata(df_samples):
             for col in temp.columns:
                 df_samples.loc[row, col] = temp[col][0]
         except:
-            bad_api.append(df_samples['id'][row])
+            #bad_api.append(df_samples['id'][row])
             continue
         
     return df_samples
 
 
 if __name__=="__main__":
+    cwd = os.path.dirname(os.path.realpath(__file__)).replace('src','')
     sampleIDs = getAllSampleIDs()
     df_samples = listPDFfiles(sampleIDs)
     df_samples = getPageCount(df_samples)
     df_samples = combineAPIdata(df_samples)
+    df_samples.to_csv(cwd+r'outputs\out_prepare.csv')
