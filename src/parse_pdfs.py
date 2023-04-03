@@ -69,28 +69,49 @@ def loadPickles():
 
 
 def parseDF(raw, df_samples):
-    outputs = df_samples.copy()
+    outputs = pd.DataFrame()
+    i=0
     for sampleID in raw.keys():
         #raw key
         df = raw[sampleID].copy()
         df['mineralVals'] = [[] for _ in range(len(df))]
-        for col in df.columns:
-            if df[col].str.contains('SiO2').sum() > 0:
-                #this is the column with the mineral names
-                mineralCol = col
-                df[col] = df[col].str.replace(' %','')
-                df['mineralName'] = df[col]
-            elif col != 'mineralVals':
-                dig_col = str(col)+'_dig'
-                df[dig_col] = df[col].str.findall(r'(\d+\.*\d*)').fillna('')
-                df['mineralVals'] = df['mineralVals'] + df[dig_col]
-        df = df[['mineralName', 'mineralVals']]
-        df = df.T
-        df.columns = df.iloc[0]
-        df = df[1:]
-        df['id'] = sampleID
-        outputs = pd.merge(outputs, df, on='id', how='left')
-    return outputs
+        try:
+            for col in df.columns:
+                if df[col].str.contains('SiO2').sum() > 0:
+                    #this is the column with the mineral names
+                    mineralCol = col
+                    df[col] = df[col].str.replace(' %','')
+                    df['mineralName'] = df[col]
+                elif col != 'mineralVals':
+                    dig_col = str(col)+'_dig'
+                    df[dig_col] = df[col].str.findall(r'(\d+\.*\d*)').fillna('')
+                    df['mineralVals'] = df['mineralVals'] + df[dig_col]
+            df = df[['mineralName', 'mineralVals']]
+            df = df.T
+            df.columns = df.iloc[0]
+            df = df[1:]
+            df['id'] = sampleID
+            keep_cols = ['SiO2', 'TiO2', 'Al2O3', 'FeO', 'MnO', 'MgO',
+                   'CaO', 'Na2O', 'K2O', 'P2O5', 'S', 'sum', 'Sc ppm', 'Cr', 'Co', 'Cu',
+                   'Zn', 'Ga', 'Ge ppb', 'As', 'Se', 'Rb', 'Sr', '', '', 'Nb', 'Mo', 'Ru',
+                   'Rh', 'Pd ppb', 'Ag ppb', 'Cd ppb', 'In ppb', 'Sn ppb', 'Sb ppb',
+                   'Te ppb', 'Cs ppm', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Sm', 'Eu', 'Gd',
+                   'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf', 'Ta', 'W ppb', 'Re ppb',
+                   'Os ppb', 'Ir ppb', 'Pt ppb', 'Au ppb', 'Th ppm', 'U ppm', 'id']
+            temp = pd.DataFrame()
+            for col in keep_cols:
+                if col in df.columns and len(col)>0:
+                    temp[col] = df[col]
+                else:
+                    temp[col] = ''
+            outputs = pd.concat([outputs, temp])
+            print(i)
+            i+=1
+        except: 
+            i+=1
+            print(sampleID)
+    total = pd.merge(df_samples, outputs, on='id', how='left')
+    return total
     
 
 if __name__=="__main__":
@@ -103,5 +124,5 @@ if __name__=="__main__":
         with open(r'C:\Users\HelloWorld\Documents\_git_code\lunarSoil\outputs\raw_data_750_1000.pickle', 'wb') as f:
             pickle.dump(raw, f)
     raw = loadPickles()
-    outputs = parseDF(raw, df_samples)
-    outputs.to_csv(cwd + r'ouputs\final_out.csv')
+    total = parseDF(raw, df_samples)
+    total.to_csv(cwd + r'outputs\final_out.csv')
